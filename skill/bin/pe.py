@@ -203,7 +203,8 @@ def conversation_context(session, limit_chars=8000, max_msgs=14):
 
 # ---------------- commands ----------------
 APP_BUNDLE = os.path.join(SKILL, 'build', 'EnhancePrompt.app')
-WAIT_SECONDS = int(os.environ.get("PE_WAIT_SECONDS", "560"))   # one wait round; Claude's command tool allows 10 minutes per call
+DEFAULT_WAIT = int(os.environ.get("PE_WAIT_SECONDS", "560"))
+WAIT_SECONDS = DEFAULT_WAIT   # one wait round; Claude's command tool allows 10 minutes per call
 
 
 def pid_alive(pid):
@@ -322,7 +323,7 @@ def wait_and_emit(job, session):
             out('STATUS: STILL_OPEN')
             out('JOB: ' + job)
             out('The popup is still open (the user is still writing). Run this again to keep waiting:')
-            out(os.path.join(SKILL, 'bin', 'pe') + ' wait --job "' + job + '"')
+            out(os.path.join(SKILL, 'bin', 'pe') + ' wait --job "' + job + '"' + ('' if WAIT_SECONDS == DEFAULT_WAIT else ' --wait-seconds %d' % WAIT_SECONDS))
             return 0
         time.sleep(0.4)
     try:
@@ -528,12 +529,16 @@ def main():
     ap = argparse.ArgumentParser(prog='pe')
     sub = ap.add_subparsers(dest='cmd', required=True)
     s = sub.add_parser('start'); s.add_argument('--session', required=True); s.add_argument('--prefill', default='')
+    s.add_argument('--wait-seconds', type=int, default=0)   # shorter wait rounds for tools with shorter command limits
     f = sub.add_parser('finish'); f.add_argument('--job', required=True); f.add_argument('--model', required=True); f.add_argument('--effort', required=True)
-    wt = sub.add_parser('wait'); wt.add_argument('--job', required=True)
+    wt = sub.add_parser('wait'); wt.add_argument('--job', required=True); wt.add_argument('--wait-seconds', type=int, default=0)
     x = sub.add_parser('fail'); x.add_argument('--job', required=True); x.add_argument('--error', required=True)
     w = sub.add_parser('show'); w.add_argument('--session', required=True); w.add_argument('--n', type=int, default=0)
     sub.add_parser('cleanup')
     a = ap.parse_args()
+    global WAIT_SECONDS
+    if getattr(a, 'wait_seconds', 0):
+        WAIT_SECONDS = max(20, a.wait_seconds)
     if a.cmd == 'start':
         return cmd_start(a)
     if a.cmd == 'wait':

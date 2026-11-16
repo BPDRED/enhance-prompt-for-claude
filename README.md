@@ -91,6 +91,9 @@ To update, pull and run `./install.sh` again (close any Enhance Prompt window fi
 Tested on an Intel Mac with macOS 15 and the Claude desktop app. Apple Silicon should work the same
 (the app is built on your Mac for your Mac), but it hasn't been tested yet.
 
+**Codex, Antigravity, Gemini CLI:** the same tool works there too, with each tool's own model.
+See [Use it in other AI tools](docs/OTHER-TOOLS.md).
+
 ## How to use it
 
 In Claude Code, type:
