@@ -169,6 +169,7 @@
       this.setState(patch);
     }
     onPaste(e) {
+      if (this.S().dict === 'transcribing') { e.preventDefault(); return; }   // the box is locked while the words are written
       const cd = e.clipboardData;
       if (!cd) return;
       const types = Array.from(cd.types || []);
@@ -255,7 +256,7 @@
         this._marker.textContent = (this._dictSpace && m.text ? ' ' : '') + m.text;
         this.syncEmpty(); this.updateTextBar();
       }
-      if (m.done) { this.finishDictMarker(); if (this.S().dict !== 'off') this.setState({ dict: 'off' }); }
+      if (m.done) { this.finishDictMarker(); if (this.S().dict !== 'off') { this.setState({ dict: 'off' }); this.focusText(); } }
     }
     // ----- mic: click = start/stop, long-press = language menu -----
     micDown(e) {
@@ -760,7 +761,7 @@
     // ---------- render values ----------
     renderVals() {
       const s = this.S();
-      const listening = s.dict === 'on' || s.dict === 'system' || s.dict === 'rec';
+      const listening = s.dict === 'on' || s.dict === 'system' || s.dict === 'rec'; const busy = s.dict === 'transcribing';
       const isEdit = s.mode === 'edit'; const isPv = s.mode === 'preview';
       if (this._wasEdit && !isEdit) { this._leaveUntil = Date.now() + 400; clearTimeout(this._leaveT); this._leaveT = setTimeout(() => this.setState({ tick: this.S().tick + 1 }), 420); }
       this._wasEdit = isEdit;
@@ -888,9 +889,12 @@
         toggleWc: () => this.setState({ wc: !s.wc }),
         dictate: () => this.toggleDictation(),
         // While the mic listens, the send button is a stop square: it stops the recording (the mic does too).
-        sendBtn: () => { if (listening) this.stopDictation(); else this.send(); },
-        listening: listening, notListening: !listening, listenStr: listening ? 'true' : 'false',
-        sendLabel: listening ? 'Stop recording' : 'Send (⌘↵)', sendTip: listening ? 'Stop recording' : 'Send', sendKey: listening ? 'Click' : '⌘↵',
+        // While the words are being written (Whisper), the button spins and the box is grayed and locked,
+        // until the text is in the box.
+        sendBtn: () => { if (busy) return; if (listening) this.stopDictation(); else this.send(); },
+        listening: listening, busy: busy, showSend: !listening && !busy, listenStr: listening ? 'true' : 'false', busyStr: busy ? 'true' : 'false',
+        taEditable: busy ? 'false' : 'true', taOp: busy ? '0.45' : '1', taPe: busy ? 'none' : 'auto',
+        sendLabel: busy ? 'Writing what you said…' : (listening ? 'Stop recording' : 'Send (⌘↵)'), sendTip: busy ? 'Writing what you said…' : (listening ? 'Stop recording' : 'Send'), sendKey: busy ? '' : (listening ? 'Click' : '⌘↵'),
         micDown: (e) => this.micDown(e), micUp: (e) => this.micUp(e), micLeave: () => this.micLeave(), micKey: (e) => this.micKey(e),
         micStr: s.dict !== 'off' ? 'true' : 'false',
         micColor: s.dict === 'on' || s.dict === 'system' || s.dict === 'rec' ? (this._dictEngine === 'mac' ? 'var(--mac-green)' : 'var(--accent)') : (s.dict === 'transcribing' ? 'var(--faint)' : 'var(--icon)'),
@@ -966,7 +970,7 @@
         onText: () => { this.autoGrow(); if (s.idle) this.setState({ idle: false }); }, onTextScroll: () => this.textScroll(),
         taKey: (e) => this.taKey(e), onPaste: (e) => this.onPaste(e),
         onTaFocus: () => { if (this.S().idle) this.setState({ idle: false }); },
-        dragOver: (e) => { e.preventDefault(); }, drop: (e) => { e.preventDefault(); const f = Array.from((e.dataTransfer && e.dataTransfer.files) || []).filter((x) => x.type.indexOf('image/') === 0); if (f.length) this.readFiles(f); },
+        dragOver: (e) => { e.preventDefault(); }, drop: (e) => { e.preventDefault(); if (this.S().dict === 'transcribing') return; const f = Array.from((e.dataTransfer && e.dataTransfer.files) || []).filter((x) => x.type.indexOf('image/') === 0); if (f.length) this.readFiles(f); },
         onStripWheel: (e) => { const el = e.currentTarget; if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { el.scrollLeft += e.deltaY; e.preventDefault(); } },
         onStripScroll: () => this.stripScroll(),
         tp: tp,
