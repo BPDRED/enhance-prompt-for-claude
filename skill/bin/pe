@@ -1,0 +1,3 @@
+#!/bin/bash
+# Entry point for the /enhance-prompt skill's helper commands (see pe.py).
+exec python3 -I "$(cd "$(dirname "$0")" && pwd)/pe.py" "$@"

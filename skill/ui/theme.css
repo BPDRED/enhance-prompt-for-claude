@@ -1,0 +1,126 @@
+/* Colours for both themes. The window follows the Mac's Light/Dark setting automatically.
+   Dark values come from the approved design boards; light values were measured from Claude's light mode. */
+:root {
+  color-scheme: dark;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --window: #1a1a1a;          /* result window background (board 7 uses #2f2f2f) */
+  --result-bg: #2f2f2f;
+  --box: #2f2f2f;             /* prompt box */
+  --box-border: #414141;
+  --box-border-strong: #5a5a5a;
+  --box-shadow: 0 2px 10px rgba(0,0,0,0.16);   /* very subtle */
+  --bar-on: #3c3c3c;          /* revise bar when on */
+  --bar-on-border: #56627a;
+  --bar-off-border: #5a5a5a;
+  --row-hover: #474747;       /* selected row in revise list */
+  --slot-off: #3a3a3a;
+  --slot-off-border: #4a4a4a;
+  --pill: #3d4659;            /* blue #N pill */
+  --pill-text: #c3d4fa;
+  --pill-muted: #3a3a3a;
+  --pill-muted-text: #c9c9c9;
+  --accent: #9db8f5;
+  --accent-ink: #14161a;      /* text on accent buttons */
+  --text: #ececec;
+  --text-2: #d6d6d6;
+  --muted: #a8a8a8;
+  --faint: #8a8a8a;
+  --placeholder: #9a9a9a;
+  --quiet-icon: #9a9a9a;
+  --icon: #e6e6e6;
+  --thumb-border: #4a4a4a;
+  --divider: #4a4a4a;
+  --tip-bg: #2a2a2a;
+  --tip-border: #3d3d3d;
+  --kbd-border: #4a4a4a;
+  --backdrop: #121212;
+  --stage: #0b0b0b;
+  --toolbar: #242424;
+  --toolbar-border: #3a3a3a;
+  --tool-on-bg: #3d4659;
+  --tool-on-fg: #c3d4fa;
+  --tool-fg: #d6d6d6;
+  --disabled: #5a5a5a;
+  --danger: #f07a7a;
+  --danger-border: #7a3a3a;
+  --chrome-bg: rgba(18,18,18,0.72);
+  --chrome-border: rgba(255,255,255,0.22);
+  --chrome-fg: #f0f0f0;
+  --scroll-thumb: #a8a8a8;
+  --toast-check: #9db8f5;
+  --menu-hover: #323232;     /* soft hover in the mic menu */
+  --mac-green: #30d158;      /* Mac dictation */
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --window: #fafafa;
+    --result-bg: #fafafa;
+    --box: #ffffff;
+    --box-border: #d6d6d6;
+    --box-border-strong: #c4c4c4;
+    --box-shadow: 0 2px 8px rgba(0,0,0,0.04);   /* very subtle */
+    --bar-on: #f2f2f2;
+    --bar-on-border: #b8c9f2;
+    --bar-off-border: #c9c9c9;
+    --row-hover: #e7e7e7;
+    --slot-off: #f2f2f2;
+    --slot-off-border: #d6d6d6;
+    --pill: #dfe8fd;
+    --pill-text: #2563eb;
+    --pill-muted: #e7e7e7;
+    --pill-muted-text: #616161;
+    --accent: #2563eb;
+    --accent-ink: #ffffff;
+    --text: #191919;
+    --text-2: #191919;
+    --muted: #616161;
+    --faint: #818181;
+    --placeholder: #818181;
+    --quiet-icon: #818181;
+    --icon: #191919;
+    --thumb-border: #d6d6d6;
+    --divider: #e0e0e0;
+    --tip-bg: #ffffff;
+    --tip-border: #d6d6d6;
+    --kbd-border: #d6d6d6;
+    --backdrop: #fafafa;
+    --stage: #f2f2f2;
+    --toolbar: #ffffff;
+    --toolbar-border: #d6d6d6;
+    --tool-on-bg: #dfe8fd;
+    --tool-on-fg: #2563eb;
+    --tool-fg: #191919;
+    --disabled: #c4c4c4;
+    --danger: #d64545;
+    --danger-border: #f0b4b4;
+    --chrome-bg: rgba(255,255,255,0.85);
+    --chrome-border: rgba(0,0,0,0.14);
+    --chrome-fg: #191919;
+    --scroll-thumb: #818181;
+    --toast-check: #2563eb;
+    --menu-hover: #f4f4f4;
+    --mac-green: #1f9e45;
+  }
+}
+html, body { margin: 0; padding: 0; }
+body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
+button { font-family: inherit; }
+textarea::placeholder { color: var(--placeholder); }
+.tip { position: absolute; display: flex; align-items: center; gap: 6px; white-space: nowrap; padding: 5px 8px; background: var(--tip-bg); border: 1px solid var(--tip-border); border-radius: 8px; font-size: 12px; font-weight: 400; color: var(--text-2); pointer-events: none; z-index: 30; box-shadow: 0 4px 14px rgba(0,0,0,0.12); }
+.kbd { font-size: 11px; color: var(--muted); border: 1px solid var(--kbd-border); border-radius: 4px; padding: 0 5px; }
+[data-strip], [data-prompt], [data-scrollv] { scrollbar-width: none; }
+[data-strip]::-webkit-scrollbar, [data-prompt]::-webkit-scrollbar, [data-scrollv]::-webkit-scrollbar { display: none; }
+[data-hthumb] { height: 3px; opacity: 0.3; transition: height 220ms ease, opacity 220ms ease; }
+[data-vthumb] { width: 3px; opacity: 0.3; transition: width 220ms ease, opacity 220ms ease; }
+[data-hthumb][data-active] { height: 7px; opacity: 0.85; }
+[data-vthumb][data-active] { width: 7px; opacity: 0.85; }
+[data-hbar] { height: 3px; opacity: 0.3; transition: height 220ms ease, opacity 220ms ease; }
+[data-handle]:hover [data-hbar], [data-handle][data-active] [data-hbar] { height: 7px; opacity: 0.85; }
+[data-handle][data-active] { cursor: grabbing; }
+/* While the window changes size (zoom, resize), everything follows at once instead of animating behind it. */
+html.resizing *, html.resizing *::before, html.resizing *::after { transition: none !important; }
+/* Subtle "press in" for the composer icon buttons (+, WC, mic, send). */
+.press { transition: transform 140ms cubic-bezier(0.3, 0.7, 0.4, 1), color 160ms ease, border-color 160ms ease; }
+.press:active { transform: scale(0.9); transition-duration: 70ms; }
+.press:active .tip { opacity: 0; }

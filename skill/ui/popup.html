@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Enhance prompt</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+html, body { background: transparent; overflow: hidden; }
+#app { position: fixed; inset: 0; }
+img { -webkit-user-drag: none; user-select: none; }
+/* Formatted prompt box (like Claude's): lists, bold, italic, links, separator, spell check. */
+[data-rich] { word-wrap: break-word; }
+[data-rich].is-empty::before { content: attr(data-ph); color: var(--placeholder); pointer-events: none; position: absolute; }
+[data-rich] p, [data-rich] div { margin: 0; }
+[data-rich] ul, [data-rich] ol { margin: 2px 0; padding-left: 1.5em; }
+[data-rich] li { margin: 1px 0; }
+[data-rich] strong, [data-rich] b { font-weight: 600; }
+[data-rich] a { color: var(--accent); text-decoration: none; }
+[data-rich] hr { border: 0; border-top: 1px solid var(--divider); margin: 10px 0; }
+[data-rich] code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.88em; padding: 0.1em 0.35em; border-radius: 5px; background: var(--bar-on); }
+.menu-row { display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; padding: 0 10px; box-sizing: border-box; background: none; border: 0; border-radius: 8px; color: var(--text-2); font-family: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.menu-row:hover { background: var(--menu-hover); }
+.menu-row:focus, .menu-row:active { outline: none; }
+/* Editor toolbars fade in and out with the image (same timing), instead of popping. */
+.edchrome { position: absolute; inset: 0; z-index: 5; pointer-events: none; opacity: 1; transition: opacity 380ms cubic-bezier(0.42, 0, 0.58, 1); }
+.edchrome > * { pointer-events: auto; }
+.edchrome[data-on="true"] { animation: pe-fade-in 380ms cubic-bezier(0.42, 0, 0.58, 1); }
+.edchrome[data-on="false"] { opacity: 0; }
+.edchrome[data-on="false"] * { pointer-events: none !important; }
+@keyframes pe-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.sbtn { border: 1px solid transparent; background: transparent; transition: border-color 160ms ease, background-color 160ms ease, transform 140ms cubic-bezier(0.3, 0.7, 0.4, 1); }
+.sbtn[data-open="false"]:hover { border-color: var(--box-border-strong); }
+/* The whole Model / Language row (search icon included) lights up on hover; not while its search is open. */
+.ms-field { border-radius: 8px; }
+.ms-field[data-sopen="false"]:hover { background: var(--menu-hover); }
+.ms-field > .menu-row:hover { background: none; }
+.menu-row[disabled] { opacity: 0.45; cursor: default; }
+.menu-row[disabled]:hover { background: none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<template id="tpl">
+<div ref="{{rootRef}}" tabIndex="0" onKeyDown="{{onKey}}" style="position: relative; width: {{W}}px; height: {{H}}px; box-sizing: border-box; overflow: hidden; outline: none; color: var(--text)">
+
+<div ref="{{boxRef}}" onDragOver="{{dragOver}}" onDrop="{{drop}}" style="position: absolute; left: {{CX}}px; bottom: {{BB}}px; width: {{BW}}px; box-sizing: border-box; padding: {{boxPad}}; display: flex; flex-direction: column; background: var(--box); border: 1px solid {{boxBorder}}; border-radius: 22px; box-shadow: var(--box-shadow); z-index: 1; transition: {{boxTr}}">
+<sc-if value="{{handleOn}}"><div data-handle="1" role="separator" aria-label="Drag to move" onPointerDown="{{handleDown}}" style="position: absolute; left: 50%; top: 0; width: {{handleW}}px; height: 14px; transform: translateX(-50%); display: flex; align-items: center; cursor: grab; z-index: 3"><div data-hbar="1" style="width: 100%; border-radius: 999px; background: var(--scroll-thumb); pointer-events: none"></div></div></sc-if>
+
+<sc-if value="{{idle}}">
+<div onClick="{{wake}}" style="height: 80px; box-sizing: border-box; display: flex; align-items: center; gap: 16px; padding: 0 22px 0 28px; cursor: text">
+<span style="flex-grow: 1; font-size: 22px; color: var(--placeholder)">Enhance your prompt</span>
+<button class="press" aria-label="Dictate" onClick="{{dictate}}" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; border-radius: 10px; cursor: pointer; color: var(--icon)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg></button>
+</div>
+</sc-if>
+
+<sc-if value="{{awake}}">
+<sc-if value="{{hasRevise}}">
+<div style="position: relative; display: flex; flex-direction: column; background-color: {{rb.bg}}; border: 1px {{rb.bstyle}} {{rb.bcolor}}; border-radius: 14px; overflow: hidden; transition: background-color 400ms ease, border-color 400ms ease">
+<div style="height: {{rl.expH}}; overflow: hidden; transition: height 650ms cubic-bezier(0.65, 0, 0.35, 1) {{rl.expDelay}}">
+<div style="position: relative; box-sizing: border-box; padding: 8px 8px 0 8px; display: flex; flex-direction: column; gap: 4px">
+<div style="padding: 0px 44px 0px 12px; height: 36px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center"><span style="flex-grow: 1; min-width: 0; white-space: nowrap; overflow: hidden"><sc-for list="{{rl.headWords}}" as="w"><span style="display: inline-block; margin-right: 0.35em; opacity: {{w.op}}; transform: translateY({{w.ty}}); transition: opacity 220ms {{w.ease}} {{w.delay}}, transform 220ms {{w.ease}} {{w.delay}}">{{w.text}}</span></sc-for></span></div>
+<button aria-label="Hide earlier prompts" aria-expanded="{{rl.openStr}}" tabIndex="{{rl.tab}}" onClick="{{closeList}}" style="position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: none; border: 0; padding: 0; cursor: pointer; color: var(--text)">
+<span style="display: block; width: 20px; height: 20px; opacity: {{rl.hChevOp}}; transform: translateY({{rl.hChevY}}); transition: opacity 200ms {{rl.ez}} {{rl.hChevOpD}}, transform 260ms {{rl.bounce}} {{rl.hChevTrD}}">
+<span style="display: block; width: 20px; height: 20px; transform: rotate({{rl.hChevRot}}); transition: transform 300ms cubic-bezier(0.65, 0, 0.35, 1) {{rl.hChevRotDelay}}">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"></path></svg>
+</span>
+</span>
+</button>
+<div role="listbox" data-scrollv="1" ref="{{listRef}}" onScroll="{{onListScroll}}" aria-label="Prompts enhanced in this thread" style="max-height: 172px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{rl.rows}}" as="r">
+<button role="option" aria-selected="{{r.selStr}}" tabIndex="{{rl.tab}}" onClick="{{r.pick}}" style="flex-shrink: 0; display: flex; align-items: center; gap: 12px; height: 56px; box-sizing: border-box; padding: 0 12px; background: {{r.bg}}; border: 0; border-radius: 10px; cursor: pointer; font-family: inherit; text-align: left; opacity: {{rl.rowOp}}; transform: translateY({{rl.rowY}}); transition: opacity 260ms {{rl.ez}} {{r.d}}, transform 260ms {{rl.ez}} {{r.d}}, background-color 160ms ease">
+<span style="flex-grow: 1; min-width: 0; font-size: 15px; color: {{r.fg}}; white-space: nowrap; overflow: hidden"><sc-for list="{{r.words}}" as="w"><span style="display: inline-block; margin-right: 0.28em; opacity: {{w.op}}; transform: translateY({{w.ty}}); transition: opacity 220ms {{w.ease}} {{w.delay}}, transform 220ms {{w.ease}} {{w.delay}}">{{w.text}}</span></sc-for></span><span style="flex-shrink: 0; font-size: 12px; color: var(--muted)">{{r.meta}}</span><span style="flex-shrink: 0; font-size: 14px; font-weight: 600; color: {{r.pillFg}}; background: {{r.pillBg}}; padding: 5px 12px; border-radius: 999px">#{{r.n}}</span>
+</button>
+</sc-for>
+</div>
+<div data-vthumb="1" ref="{{listThumbRef}}" aria-hidden="true" style="position: absolute; right: 2px; top: 48px; height: 0px; border-radius: 999px; background: var(--scroll-thumb); pointer-events: none"></div>
+<div style="height: 1px; background: var(--divider); margin: 4px 4px 0 4px"></div>
+</div>
+</div>
+<div role="button" tabIndex="0" aria-label="{{rb.label}}" aria-pressed="{{rb.onStr}}" onClick="{{toggleRevise}}" onKeyDown="{{barKey}}" style="position: relative; display: block; height: 50px; cursor: pointer; outline: none">
+<span style="position: absolute; top: 12px; left: {{rb.textLeft}}; right: {{rb.textRight}}; height: 24px; display: block; overflow: hidden; transition: left 450ms cubic-bezier(0.65, 0, 0.35, 1) {{rb.pushDelay}}, right 280ms cubic-bezier(0.65, 0, 0.35, 1) {{rb.growDelay}}">
+<span style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: block; text-align: left; font-size: 17px; line-height: 24px; color: var(--muted); white-space: nowrap; overflow: hidden">
+<sc-for list="{{rb.phWords}}" as="w"><span style="display: inline-block; margin-right: 0.28em; opacity: {{w.op}}; transform: translateY({{w.ty}}); transition: opacity 200ms ease {{w.delay}}, transform 200ms ease {{w.delay}}">{{w.text}}</span></sc-for>
+</span>
+<span style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: block; text-align: left; font-size: 17px; line-height: 24px; color: var(--text-2); white-space: nowrap; overflow: hidden">
+<sc-for list="{{rb.rvWords}}" as="w"><span style="display: inline-block; margin-right: 0.28em; opacity: {{w.op}}; transform: translateY({{w.ty}}); transition: opacity 220ms ease {{w.delay}}, transform 220ms ease {{w.delay}}">{{w.text}}</span></sc-for>
+</span>
+</span>
+<span role="button" tabIndex="0" aria-label="{{rb.slotLabel}}" onClick="{{slotClick}}" style="position: absolute; right: 12px; top: 11px; width: {{rb.slotW}}; height: 26px; box-sizing: border-box; display: block; overflow: hidden; border-radius: 999px; border: 1px solid {{rb.slotBorder}}; background-color: {{rb.slotBg}}; cursor: pointer; transition: background-color 300ms ease {{rb.slotDelay}}, border-color 300ms ease {{rb.slotDelay}}, width 280ms cubic-bezier(0.65, 0, 0.35, 1) {{rb.growDelay}}">
+<span style="position: absolute; top: 3px; left: 12px; width: 18px; height: 18px; display: block; color: var(--quiet-icon); transform: translateX({{rb.aX}}); transition: transform 350ms cubic-bezier(0.65, 0, 0.35, 1) {{rb.slotDelay}}">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"></path></svg>
+</span>
+<span style="position: absolute; top: 0; left: 12px; bottom: 0; display: flex; align-items: center; font-size: 14px; font-weight: 600; color: var(--pill-text); transform: translateX({{rb.nX}}); transition: transform 350ms cubic-bezier(0.65, 0, 0.35, 1) {{rb.slotDelay}}">#{{rb.n}}</span>
+<span style="position: absolute; top: 5px; right: 9px; width: 14px; height: 14px; display: block; color: var(--pill-text); opacity: {{rb.chevOp}}; transform: translateY({{rb.chevY}}); transition: transform 280ms {{rb.chevEase}} {{rb.chevDelay}}, opacity 200ms ease {{rb.chevDelay}}">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"></path></svg>
+</span>
+</span>
+<span style="position: absolute; top: 14px; left: {{rb.bLeft}}; width: 20px; height: 20px; display: block; color: var(--accent); transition: left 450ms cubic-bezier(0.65, 0, 0.35, 1) {{rb.pushDelay}}">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"></path></svg>
+</span>
+</div>
+</div>
+<div style="height: 14px; flex-shrink: 0"></div>
+</sc-if>
+
+<div ref="{{spacerRef}}" style="flex-shrink: 0; height: {{pvH}}; transition: height 380ms cubic-bezier(0.42, 0, 0.58, 1)"></div>
+
+<sc-if value="{{hasImgs}}">
+<div style="position: relative">
+<div data-strip="1" ref="{{stripRef}}" onWheel="{{onStripWheel}}" onScroll="{{onStripScroll}}" style="display: flex; gap: 10px; padding: 0 4px 6px 4px; overflow-x: auto; overflow-y: hidden">
+<sc-for list="{{thumbs}}" as="t">
+<div onMouseEnter="{{t.hoverOn}}" onMouseLeave="{{t.hoverOff}}" style="position: relative; flex-shrink: 0; width: 80px; height: 80px">
+<button aria-label="{{t.label}}" onClick="{{t.pick}}" style="position: absolute; inset: 0; width: 80px; height: 80px; box-sizing: border-box; padding: 0; overflow: hidden; border-radius: 12px; border: {{t.border}}; background: var(--stage); cursor: pointer; transition: border-color 200ms ease">
+<img src="{{t.src}}" alt="" draggable="false" style="width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none">
+<sc-if value="{{t.edited}}"><span title="Edited" style="position: absolute; left: 4px; bottom: 4px; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; color: var(--accent); filter: drop-shadow(0 1px 1.5px rgba(0,0,0,0.85))"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg></span></sc-if>
+</button>
+<button aria-label="{{t.removeLabel}}" title="Remove" onClick="{{t.remove}}" style="position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 999px; background: var(--box); border: 1px solid var(--thumb-border); color: var(--text-2); cursor: pointer; opacity: {{t.xOp}}; pointer-events: {{t.xPe}}; transition: opacity 150ms ease"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+</sc-for>
+</div>
+<div data-hthumb="1" ref="{{hThumbRef}}" aria-hidden="true" style="position: absolute; left: 4px; bottom: 0px; width: 0px; border-radius: 999px; background: var(--scroll-thumb); pointer-events: none"></div>
+</div>
+<div style="height: 8px; flex-shrink: 0"></div>
+</sc-if>
+
+<div style="display: flex; align-items: flex-start; min-height: 52px; padding: 13px 8px 0 8px; box-sizing: border-box">
+<div style="position: relative; flex-grow: 1; min-width: 0">
+<div data-rich="1" data-scrollv="1" ref="{{taRef}}" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Enhance your prompt" data-ph="{{placeholder}}" spellcheck="true" onInput="{{onText}}" onKeyDown="{{taKey}}" onPaste="{{onPaste}}" onFocus="{{onTaFocus}}" onScroll="{{onTextScroll}}" style="display: block; box-sizing: border-box; min-height: 26px; max-height: 180px; padding: 0 10px 0 0; margin: 0; outline: none; overflow-y: auto; font-size: 19px; line-height: 26px; color: var(--text)"></div>
+<div data-vthumb="1" ref="{{textThumbRef}}" aria-hidden="true" style="position: absolute; right: 0px; top: 0px; height: 0px; border-radius: 999px; background: var(--scroll-thumb); pointer-events: none"></div>
+</div>
+</div>
+<div style="position: relative; display: flex; align-items: center; gap: 10px; height: 52px">
+<button class="press" aria-label="Add images" onClick="{{addImages}}" onMouseEnter="{{tp.add.on}}" onMouseLeave="{{tp.add.off}}" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; border-radius: 10px; cursor: pointer; color: var(--icon)">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+<sc-if value="{{tp.add.show}}"><span role="tooltip" class="tip" style="bottom: 46px; left: 0">Add images<span class="kbd">or paste</span></span></sc-if>
+</button>
+<span style="flex-grow: 1"></span>
+<button class="press" aria-label="Use this conversation's context (WC)" aria-pressed="{{wcStr}}" onClick="{{toggleWc}}" onMouseEnter="{{tp.wc.on}}" onMouseLeave="{{tp.wc.off}}" style="position: relative; height: 32px; box-sizing: border-box; padding: 0px 12px; background: none; border: 1px solid {{wcBorder}}; border-radius: 999px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 400; color: {{wcColor}}; letter-spacing: 0.04em">WC<sc-if value="{{tp.wc.show}}"><span role="tooltip" class="tip" style="bottom: 40px; right: 0">{{wcTip}}</span></sc-if></button>
+<button class="press" aria-label="Send (⌘↵)" onClick="{{sendBtn}}" onMouseEnter="{{tp.send.on}}" onMouseLeave="{{tp.send.off}}" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; border-radius: 10px; cursor: pointer; color: var(--icon)">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 5v7a4 4 0 0 1-4 4H5"></path><path d="M9 12l-4 4 4 4"></path></svg>
+<sc-if value="{{tp.send.show}}"><span role="tooltip" class="tip" style="bottom: 46px; right: 0">Send<span class="kbd">⌘↵</span></span></sc-if>
+</button>
+<button class="press" aria-label="{{micLabel}}" aria-pressed="{{micStr}}" aria-haspopup="menu" onPointerDown="{{micDown}}" onPointerUp="{{micUp}}" onPointerLeave="{{micLeave}}" onKeyDown="{{micKey}}" onMouseEnter="{{tp.mic.on}}" onMouseLeave="{{tp.mic.off}}" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; border-radius: 10px; cursor: pointer; color: {{micColor}}">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>
+<sc-if value="{{tp.mic.show}}"><span role="tooltip" class="tip" style="bottom: 46px; right: 0">{{micTip}}</span></sc-if>
+</button>
+</div>
+<sc-if value="{{mp.open}}">
+<div role="menu" aria-label="Dictation" style="position: absolute; right: 8px; bottom: 58px; width: {{mp.w}}px; box-sizing: border-box; padding: 6px; background: var(--tip-bg); border: 1px solid var(--tip-border); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.18); z-index: 40; transition: width 240ms cubic-bezier(0.65, 0, 0.35, 1)">
+<sc-if value="{{mp.menu}}">
+<div style="padding: 4px 10px 6px 10px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted)">{{mm.engineName}}</div>
+<sc-for list="{{mm.langs}}" as="l"><button role="menuitemradio" aria-checked="{{l.onStr}}" class="menu-row" onClick="{{l.pick}}"><span style="width: 16px; color: var(--accent)">{{l.check}}</span><span style="flex-grow: 1">{{l.name}}</span><span style="font-size: 11px; color: var(--faint)">{{l.note}}</span></button></sc-for>
+<div style="height: 1px; margin: 5px 6px; background: var(--divider)"></div>
+<button role="menuitem" class="menu-row" onClick="{{mm.openSettings}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg><span>Settings</span></button>
+</sc-if>
+<sc-if value="{{mp.settings}}">
+<div style="display: flex; align-items: center; height: 34px; padding: 0 4px 0 10px; margin-bottom: 2px">
+<span style="flex-grow: 1; font-size: 14px; font-weight: 600; color: var(--text)">Dictation</span>
+<button class="press" aria-label="Back to the language menu" onClick="{{ms.close}}" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; border-radius: 8px; color: var(--text-2); cursor: pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+</div>
+<div aria-hidden="true" style="height: {{ms.model.capH}}px; transition: height 240ms cubic-bezier(0.65, 0, 0.35, 1)"></div>
+<div class="ms-field" data-sopen="{{ms.model.sOpenStr}}" style="position: relative; display: flex; align-items: center; gap: 0; margin: 0 2px; padding-right: 3px">
+<button class="menu-row" aria-expanded="{{ms.model.openStr}}" onClick="{{ms.model.toggle}}" style="flex-grow: 1; min-width: 0; height: 36px; gap: 6px; pointer-events: {{ms.model.rowPE}}">
+<span style="display: flex; gap: 6px; flex-grow: 1; min-width: 0; transform: translateY({{ms.model.labelY}}px); transition: transform 240ms cubic-bezier(0.65, 0, 0.35, 1)"><span style="flex-shrink: 0; color: var(--muted)">Model:</span><span style="flex-grow: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text)">{{ms.model.value}}</span></span>
+</button>
+<sc-if value="{{ms.model.hasSearch}}">
+<div style="position: relative; flex-shrink: 0; width: 30px; height: 30px">
+<input aria-label="Search models" placeholder="Search…" ref="{{ms.model.inputRef}}" value="{{ms.model.q}}" onChange="{{ms.model.onQ}}" tabIndex="{{ms.model.inputTab}}" style="position: absolute; right: 0; top: 0; height: 30px; width: {{ms.model.inputW}}; box-sizing: border-box; padding: 0 34px 0 10px; border-radius: 999px; border: 1px solid {{ms.model.inputBorder}}; background: var(--box); color: var(--text); font-family: inherit; font-size: 13px; outline: none; opacity: {{ms.model.inputOp}}; transition: width 240ms cubic-bezier(0.65, 0, 0.35, 1), opacity 240ms cubic-bezier(0.65, 0, 0.35, 1), border-color 240ms cubic-bezier(0.65, 0, 0.35, 1)">
+<button class="press sbtn" data-open="{{ms.model.sOpenStr}}" aria-label="Search models" onClick="{{ms.model.toggleSearch}}" style="position: absolute; right: 0; top: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 999px; color: var(--text-2); cursor: pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M20 20l-4.2-4.2"></path></svg></button>
+</div>
+</sc-if>
+</div>
+<div aria-hidden="{{ms.model.closedStr}}" style="height: {{ms.model.expH}}px; overflow: hidden; transition: height 240ms cubic-bezier(0.65, 0, 0.35, 1)">
+<div style="position: relative">
+<div role="listbox" data-scrollv="1" aria-label="Models" ref="{{ms.model.listRef}}" onScroll="{{ms.model.onScroll}}" style="max-height: {{ms.model.maxH}}px; overflow-y: auto; box-sizing: border-box; padding: 2px 10px 4px 2px">
+<sc-for list="{{ms.model.rows}}" as="o"><button role="option" aria-selected="{{o.onStr}}" class="menu-row" disabled="{{o.disabled}}" tabIndex="{{o.tab}}" onClick="{{o.pick}}" style="height: {{ms.model.rowH}}px"><span style="width: 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: {{o.markColor}}"><sc-if value="{{o.isMac}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg></sc-if><sc-if value="{{o.notMac}}">{{o.mark}}</sc-if></span><span style="flex-grow: 1; min-width: 0"><span style="display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text)">{{o.name}}</span><sc-if value="{{o.hasDesc}}"><span style="display: block; font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{o.desc}}</span></sc-if></span><span style="flex-shrink: 0; font-size: 11px; color: var(--faint)">{{o.note}}</span></button></sc-for>
+<sc-if value="{{ms.model.empty}}"><div style="padding: 8px 10px; font-size: 13px; color: var(--faint)">No match</div></sc-if>
+</div>
+<div data-vthumb="1" ref="{{ms.model.thumbRef}}" aria-hidden="true" style="position: absolute; right: 1px; top: 0; height: 0px; display: none; border-radius: 999px; background: var(--scroll-thumb); pointer-events: none"></div>
+</div>
+</div>
+<div style="height: 1px; margin: 4px 8px; background: var(--tip-border)"></div>
+<div aria-hidden="true" style="height: {{ms.lang.capH}}px; transition: height 240ms cubic-bezier(0.65, 0, 0.35, 1)"></div>
+<div class="ms-field" data-sopen="{{ms.lang.sOpenStr}}" style="position: relative; display: flex; align-items: center; gap: 0; margin: 0 2px; padding-right: 3px">
+<button class="menu-row" aria-expanded="{{ms.lang.openStr}}" onClick="{{ms.lang.toggle}}" style="flex-grow: 1; min-width: 0; height: 36px; gap: 6px; pointer-events: {{ms.lang.rowPE}}">
+<span style="display: flex; gap: 6px; flex-grow: 1; min-width: 0; transform: translateY({{ms.lang.labelY}}px); transition: transform 240ms cubic-bezier(0.65, 0, 0.35, 1)"><span style="flex-shrink: 0; color: var(--muted)">Language:</span><span style="flex-grow: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text)">{{ms.lang.value}}</span></span>
+</button>
+<sc-if value="{{ms.lang.hasSearch}}">
+<div style="position: relative; flex-shrink: 0; width: 30px; height: 30px">
+<input aria-label="Search languages" placeholder="Search…" ref="{{ms.lang.inputRef}}" value="{{ms.lang.q}}" onChange="{{ms.lang.onQ}}" tabIndex="{{ms.lang.inputTab}}" style="position: absolute; right: 0; top: 0; height: 30px; width: {{ms.lang.inputW}}; box-sizing: border-box; padding: 0 34px 0 10px; border-radius: 999px; border: 1px solid {{ms.lang.inputBorder}}; background: var(--box); color: var(--text); font-family: inherit; font-size: 13px; outline: none; opacity: {{ms.lang.inputOp}}; transition: width 240ms cubic-bezier(0.65, 0, 0.35, 1), opacity 240ms cubic-bezier(0.65, 0, 0.35, 1), border-color 240ms cubic-bezier(0.65, 0, 0.35, 1)">
+<button class="press sbtn" data-open="{{ms.lang.sOpenStr}}" aria-label="Search languages" onClick="{{ms.lang.toggleSearch}}" style="position: absolute; right: 0; top: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 999px; color: var(--text-2); cursor: pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M20 20l-4.2-4.2"></path></svg></button>
+</div>
+</sc-if>
+</div>
+<div aria-hidden="{{ms.lang.closedStr}}" style="height: {{ms.lang.expH}}px; overflow: hidden; transition: height 240ms cubic-bezier(0.65, 0, 0.35, 1)">
+<div style="position: relative">
+<div role="listbox" data-scrollv="1" aria-label="Languages" ref="{{ms.lang.listRef}}" onScroll="{{ms.lang.onScroll}}" style="max-height: {{ms.lang.maxH}}px; overflow-y: auto; box-sizing: border-box; padding: 2px 10px 4px 2px">
+<sc-for list="{{ms.lang.rows}}" as="o"><button role="option" aria-selected="{{o.onStr}}" class="menu-row" disabled="{{o.disabled}}" tabIndex="{{o.tab}}" onClick="{{o.pick}}" style="height: {{ms.lang.rowH}}px"><span style="width: 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: {{o.markColor}}"><sc-if value="{{o.isMac}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg></sc-if><sc-if value="{{o.notMac}}">{{o.mark}}</sc-if></span><span style="flex-grow: 1; min-width: 0"><span style="display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text)">{{o.name}}</span><sc-if value="{{o.hasDesc}}"><span style="display: block; font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{o.desc}}</span></sc-if></span><span style="flex-shrink: 0; font-size: 11px; color: var(--faint)">{{o.note}}</span></button></sc-for>
+<sc-if value="{{ms.lang.empty}}"><div style="padding: 8px 10px; font-size: 13px; color: var(--faint)">No match</div></sc-if>
+</div>
+<div data-vthumb="1" ref="{{ms.lang.thumbRef}}" aria-hidden="true" style="position: absolute; right: 1px; top: 0; height: 0px; display: none; border-radius: 999px; background: var(--scroll-thumb); pointer-events: none"></div>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+</sc-if>
+</div>
+
+<div style="position: absolute; top: 0; left: 0; width: {{W}}px; height: {{H}}px; background: var(--backdrop); z-index: 2; opacity: {{backOp}}; pointer-events: {{backPe}}; transition: opacity 380ms cubic-bezier(0.42, 0, 0.58, 1)"></div>
+
+<div role="img" aria-label="{{imgLabel}}" onMouseDown="{{mdown}}" onPointerDown="{{down}}" onPointerMove="{{move}}" onPointerUp="{{up}}" onDoubleClick="{{dbl}}" style="position: absolute; left: 0; top: 0; width: {{st.w}}px; height: {{st.h}}px; overflow: hidden; background: var(--stage); transform-origin: 0 0; transform: {{st.tf}}; clip-path: inset({{st.clipTop}} 0px 0px 0px round {{st.radius}}px); opacity: {{st.op}}; transition: {{st.tr}}; pointer-events: {{st.pe}}; cursor: {{cursor}}; touch-action: none; user-select: none; z-index: 3">
+<div style="position: absolute; top: 0; left: 0; width: {{st.w}}px; height: {{st.h}}px">
+<sc-for list="{{slides}}" as="sl">
+<div style="position: absolute; top: 0; left: 0; width: {{st.w}}px; height: {{st.h}}px; overflow: hidden; opacity: {{sl.op}}; transition: {{sl.tr}}; visibility: {{sl.vis}}">
+<div style="position: absolute; top: 0; left: 0; width: {{sl.dw}}px; height: {{sl.dh}}px; clip-path: {{sl.clip}}; transform-origin: 0 0; transform: {{sl.fit}}; transition: {{st.tri}}">
+<img src="{{sl.src}}" alt="" draggable="false" style="position: absolute; top: 0; left: 0; width: {{sl.dw}}px; height: {{sl.dh}}px; display: block">
+<sc-for list="{{sl.rects}}" as="s"><svg width="{{sl.dw}}" height="{{sl.dh}}" viewBox="{{sl.vb}}" aria-hidden="true" style="position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible"><rect x="{{s.x}}" y="{{s.y}}" width="{{s.w}}" height="{{s.h}}" rx="6" fill="none" stroke="{{s.c}}" stroke-width="{{s.sw}}" transform="{{s.tf}}"></rect></svg></sc-for>
+<sc-for list="{{sl.ellipses}}" as="s"><svg width="{{sl.dw}}" height="{{sl.dh}}" viewBox="{{sl.vb}}" aria-hidden="true" style="position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible"><ellipse cx="{{s.cx}}" cy="{{s.cy}}" rx="{{s.rx}}" ry="{{s.ry}}" fill="none" stroke="{{s.c}}" stroke-width="{{s.sw}}" transform="{{s.tf}}"></ellipse></svg></sc-for>
+<sc-for list="{{sl.arrows}}" as="s"><svg width="{{sl.dw}}" height="{{sl.dh}}" viewBox="{{sl.vb}}" aria-hidden="true" style="position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible"><g transform="{{s.tf}}"><line x1="{{s.x1}}" y1="{{s.y1}}" x2="{{s.lx}}" y2="{{s.ly}}" stroke="{{s.c}}" stroke-width="{{s.sw}}" stroke-linecap="round"></line><polygon points="{{s.head}}" fill="{{s.c}}"></polygon></g></svg></sc-for>
+<sc-for list="{{sl.pens}}" as="s"><svg width="{{sl.dw}}" height="{{sl.dh}}" viewBox="{{sl.vb}}" aria-hidden="true" style="position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible"><path d="{{s.d}}" fill="none" stroke="{{s.c}}" stroke-width="{{s.sw}}" stroke-linecap="round" stroke-linejoin="round" transform="{{s.tf}}"></path></svg></sc-for>
+<sc-for list="{{sl.texts}}" as="s"><div style="position: absolute; left: {{s.x}}px; top: {{s.y}}px; width: {{s.w}}px; height: {{s.h}}px; line-height: {{s.h}}px; box-sizing: border-box; padding: 0 4px; font-family: var(--font); font-size: {{s.size}}px; font-weight: 600; color: {{s.c}}; white-space: pre; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.45); transform: rotate({{s.rot}}deg); transform-origin: 50% 50%; display: {{s.disp}}">{{s.text}}</div></sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+
+<div style="position: absolute; top: 0; left: 0; width: 1px; height: 1px; pointer-events: none; transform: translate({{st.ox}}px, {{st.oy}}px); transition: {{st.tri}}">
+<sc-if value="{{hasCropDraft}}">
+<div style="position: absolute; left: {{cd.x}}px; top: {{cd.y}}px; width: {{cd.w}}px; height: {{cd.h}}px; box-sizing: border-box; border: 1.5px solid #ffffff; box-shadow: 0 0 0 4000px rgba(0,0,0,0.55); pointer-events: none"></div>
+</sc-if>
+<sc-if value="{{hasSel}}">
+<div style="position: absolute; left: {{sb.x}}px; top: {{sb.y}}px; width: {{sb.w}}px; height: {{sb.h}}px; box-sizing: border-box; border: {{sb.bw}}px dashed var(--accent); border-radius: 4px; pointer-events: none; transform: rotate({{sb.rot}}deg); transform-origin: 50% 50%">
+<div data-handle="rotate" title="Drag to rotate" style="position: absolute; left: {{sb.ro}}px; top: {{sb.ro}}px; width: {{sb.rs}}px; height: {{sb.rs}}px; border-radius: 999px; cursor: grab; pointer-events: auto"></div>
+<div data-handle="rotate" title="Drag to rotate" style="position: absolute; right: {{sb.ro}}px; top: {{sb.ro}}px; width: {{sb.rs}}px; height: {{sb.rs}}px; border-radius: 999px; cursor: grab; pointer-events: auto"></div>
+<div data-handle="rotate" title="Drag to rotate" style="position: absolute; left: {{sb.ro}}px; bottom: {{sb.ro}}px; width: {{sb.rs}}px; height: {{sb.rs}}px; border-radius: 999px; cursor: grab; pointer-events: auto"></div>
+<div data-handle="rotate" title="Drag to rotate" style="position: absolute; right: {{sb.ro}}px; bottom: {{sb.ro}}px; width: {{sb.rs}}px; height: {{sb.rs}}px; border-radius: 999px; cursor: grab; pointer-events: auto"></div>
+<div data-handle="resize" title="Drag to resize" style="position: absolute; left: {{sb.ho}}px; top: {{sb.ho}}px; width: {{sb.hs}}px; height: {{sb.hs}}px; box-sizing: border-box; background: var(--accent); border: {{sb.hb}}px solid var(--backdrop); border-radius: {{sb.hr}}px; cursor: nwse-resize; pointer-events: auto"></div>
+<div data-handle="resize" title="Drag to resize" style="position: absolute; right: {{sb.ho}}px; top: {{sb.ho}}px; width: {{sb.hs}}px; height: {{sb.hs}}px; box-sizing: border-box; background: var(--accent); border: {{sb.hb}}px solid var(--backdrop); border-radius: {{sb.hr}}px; cursor: nesw-resize; pointer-events: auto"></div>
+<div data-handle="resize" title="Drag to resize" style="position: absolute; left: {{sb.ho}}px; bottom: {{sb.ho}}px; width: {{sb.hs}}px; height: {{sb.hs}}px; box-sizing: border-box; background: var(--accent); border: {{sb.hb}}px solid var(--backdrop); border-radius: {{sb.hr}}px; cursor: nesw-resize; pointer-events: auto"></div>
+<div data-handle="resize" title="Drag to resize" style="position: absolute; right: {{sb.ho}}px; bottom: {{sb.ho}}px; width: {{sb.hs}}px; height: {{sb.hs}}px; box-sizing: border-box; background: var(--accent); border: {{sb.hb}}px solid var(--backdrop); border-radius: {{sb.hr}}px; cursor: nwse-resize; pointer-events: auto"></div>
+</div>
+</sc-if>
+<sc-if value="{{isEditingText}}">
+<input ref="{{editRef}}" aria-label="Annotation text" placeholder="Type…" value="{{editText}}" onChange="{{onEditInput}}" onBlur="{{endEdit}}" style="position: absolute; left: {{ed.x}}px; top: {{ed.y}}px; width: {{ed.w}}px; height: {{ed.h}}px; box-sizing: border-box; padding: 0 4px; background: rgba(0,0,0,0.35); border: {{ed.bw}}px solid var(--accent); border-radius: 4px; outline: none; color: {{ed.c}}; font-family: var(--font); font-size: {{ed.size}}px; font-weight: 600; transform: rotate({{ed.rot}}deg); transform-origin: 50% 50%; pointer-events: auto">
+</sc-if>
+</div>
+</div>
+
+<div style="position: absolute; top: 0; left: 0; width: {{W}}px; height: {{H}}px; z-index: 4; pointer-events: none; opacity: {{chromeOp}}; transition: opacity 220ms ease {{chromeDelay}}">
+<div onMouseEnter="{{nearL}}" onMouseLeave="{{nearOff}}" style="position: absolute; left: {{pc.x0}}px; top: {{pc.y0}}px; width: 170px; height: {{pc.h}}px; box-sizing: border-box; padding-left: 14px; display: flex; align-items: center; pointer-events: {{chromePe}}">
+<button aria-label="Previous image (←)" onClick="{{prev}}" onMouseEnter="{{tp.prev.on}}" onMouseLeave="{{tp.prev.off}}" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: var(--chrome-bg); border: 1px solid var(--chrome-border); border-radius: 999px; color: var(--chrome-fg); cursor: pointer; opacity: {{arrLOp}}; pointer-events: {{arrLPe}}; transition: opacity 180ms ease">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+<sc-if value="{{tp.prev.show}}"><span role="tooltip" class="tip" style="top: -36px; left: 50%; transform: translateX(-50%)">Previous<span class="kbd">←</span></span></sc-if>
+</button>
+</div>
+<div onMouseEnter="{{nearR}}" onMouseLeave="{{nearOff}}" style="position: absolute; left: {{pc.xr}}px; top: {{pc.y0}}px; width: 170px; height: {{pc.h}}px; box-sizing: border-box; padding-right: 14px; display: flex; align-items: center; justify-content: flex-end; pointer-events: {{chromePe}}">
+<button aria-label="Next image (→)" onClick="{{next}}" onMouseEnter="{{tp.next.on}}" onMouseLeave="{{tp.next.off}}" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: var(--chrome-bg); border: 1px solid var(--chrome-border); border-radius: 999px; color: var(--chrome-fg); cursor: pointer; opacity: {{arrROp}}; pointer-events: {{arrRPe}}; transition: opacity 180ms ease">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+<sc-if value="{{tp.next.show}}"><span role="tooltip" class="tip" style="top: -36px; left: 50%; transform: translateX(-50%)">Next<span class="kbd">→</span></span></sc-if>
+</button>
+</div>
+<button aria-label="Close preview (Esc)" onClick="{{closePv}}" onMouseEnter="{{tp.close.on}}" onMouseLeave="{{tp.close.off}}" style="position: absolute; left: {{pc.xl}}px; top: {{pc.top}}px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding: 0; background: var(--chrome-bg); border: 1px solid var(--chrome-border); border-radius: 999px; color: var(--chrome-fg); cursor: pointer; pointer-events: {{chromePe}}">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+<sc-if value="{{tp.close.show}}"><span role="tooltip" class="tip" style="top: 44px; left: 0">Close<span class="kbd">Esc</span></span></sc-if>
+</button>
+<button aria-label="Edit image (E)" onClick="{{enterEdit}}" onMouseEnter="{{tp.edit.on}}" onMouseLeave="{{tp.edit.off}}" style="position: absolute; left: {{pc.ex}}px; top: {{pc.top}}px; height: 36px; display: flex; align-items: center; gap: 7px; padding: 0 14px 0 12px; background: var(--chrome-bg); border: 1px solid var(--chrome-border); border-radius: 999px; color: var(--chrome-fg); font-family: inherit; font-size: 14px; cursor: pointer; pointer-events: {{chromePe}}; transform: translateX(-100%)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+Edit
+<sc-if value="{{tp.edit.show}}"><span role="tooltip" class="tip" style="top: 44px; right: 0">Edit image<span class="kbd">E</span></span></sc-if>
+</button>
+</div>
+
+<sc-if value="{{edChromeOn}}">
+<div class="edchrome" data-on="{{edOnStr}}">
+<div style="position: absolute; top: 0; left: 0; right: 0; height: 76px; box-sizing: border-box; padding: 0 24px; display: flex; align-items: center; gap: 16px; z-index: 5">
+<div style="flex: 1 1 0; min-width: max-content; display: flex; align-items: center; gap: 6px">
+<button aria-label="Undo (⌘Z)" onClick="{{undo}}" onMouseEnter="{{tp.undo.on}}" onMouseLeave="{{tp.undo.off}}" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; border-radius: 10px; color: {{undoColor}}; cursor: pointer">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"></path><path d="M4 9h11a5 5 0 0 1 0 10h-3"></path></svg>
+<sc-if value="{{tp.undo.show}}"><span role="tooltip" class="tip" style="top: 46px; left: 0">Undo<span class="kbd">⌘Z</span></span></sc-if>
+</button>
+<button aria-label="Redo (⇧⌘Z)" onClick="{{redo}}" onMouseEnter="{{tp.redo.on}}" onMouseLeave="{{tp.redo.off}}" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; border-radius: 10px; color: {{redoColor}}; cursor: pointer">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"></path><path d="M20 9H9a5 5 0 0 0 0 10h3"></path></svg>
+<sc-if value="{{tp.redo.show}}"><span role="tooltip" class="tip" style="top: 46px; left: 0">Redo<span class="kbd">⇧⌘Z</span></span></sc-if>
+</button>
+</div>
+
+<div style="flex: 0 0 auto; display: flex; justify-content: center">
+<div role="toolbar" ref="{{toolbarRef}}" aria-label="Markup tools" style="display: flex; gap: 4px; padding: 5px; background: var(--toolbar); border: 1px solid var(--toolbar-border); border-radius: 14px">
+<sc-for list="{{toolsA}}" as="b">
+<button aria-label="{{b.aria}}" onClick="{{b.pick}}" onMouseEnter="{{b.tipOn}}" onMouseLeave="{{b.tipOff}}" style="position: relative; width: 42px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 10px; cursor: pointer; background: {{b.bg}}; color: {{b.fg}}">
+<span style="display: flex; pointer-events: none" innerhtml="{{b.icon}}"></span>
+<sc-if value="{{b.showTip}}"><span role="tooltip" class="tip" style="top: 48px; left: 50%; transform: translateX(-50%)">{{b.name}}<span class="kbd">{{b.key}}</span></span></sc-if>
+</button>
+</sc-for>
+<div style="width: 1px; margin: 6px 3px; background: var(--toolbar-border)"></div>
+<sc-for list="{{toolsB}}" as="b">
+<button aria-label="{{b.aria}}" onClick="{{b.pick}}" onMouseEnter="{{b.tipOn}}" onMouseLeave="{{b.tipOff}}" style="position: relative; width: 42px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 10px; cursor: pointer; background: {{b.bg}}; color: {{b.fg}}">
+<span style="display: flex; pointer-events: none" innerhtml="{{b.icon}}"></span>
+<sc-if value="{{b.showTip}}"><span role="tooltip" class="tip" style="top: 48px; left: 50%; transform: translateX(-50%)">{{b.name}}<span class="kbd">{{b.key}}</span></span></sc-if>
+</button>
+</sc-for>
+<div aria-hidden="{{palHidden}}" style="display: flex; align-items: center; overflow: hidden; max-width: {{palW}}; transition: max-width 420ms cubic-bezier(0.65, 0, 0.35, 1) {{palDelay}}">
+<div style="flex-shrink: 0; width: 1px; height: 28px; margin: 0 6px; background: var(--toolbar-border); opacity: {{palOp}}; transition: opacity 200ms ease {{palSepDelay}}"></div>
+<sc-for list="{{swatches}}" as="c">
+<button aria-label="{{c.name}}" aria-pressed="{{c.pressed}}" tabIndex="{{c.tab}}" onClick="{{c.pick}}" style="flex-shrink: 0; width: 32px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; cursor: pointer; opacity: {{c.op}}; transform: translateX({{c.tx}}); transition: opacity 200ms ease {{c.d}}, transform 300ms cubic-bezier(0.34, 1.3, 0.64, 1) {{c.d}}">
+<span style="width: 20px; height: 20px; border-radius: 999px; background: {{c.hex}}; box-shadow: {{c.ring}}; transition: box-shadow 150ms ease"></span>
+</button>
+</sc-for>
+<label aria-label="Custom color" style="position: relative; flex-shrink: 0; width: 38px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: {{pk.op}}; transform: translateX({{pk.tx}}); transition: opacity 200ms ease {{pk.d}}, transform 300ms cubic-bezier(0.34, 1.3, 0.64, 1) {{pk.d}}">
+<span style="width: 20px; height: 20px; border-radius: 999px; background: conic-gradient(#ff5c5c, #ffd43b, #51cf66, #4dd4f7, #5c7cff, #d35cff, #ff5c5c); box-shadow: {{pk.ring}}"></span>
+<input type="color" value="{{colorHex}}" onChange="{{pickCustom}}" tabIndex="{{pk.tab}}" style="position: absolute; left: 9px; top: 10px; width: 20px; height: 20px; opacity: 0; border: 0; padding: 0; cursor: pointer">
+</label>
+
+</div>
+</div>
+</div>
+
+<div style="flex: 1 1 0; min-width: max-content; display: flex; align-items: center; justify-content: flex-end; gap: 8px">
+<sc-if value="{{hasSel}}">
+<button aria-label="Delete selected (⌫)" onClick="{{delSel}}" onMouseEnter="{{tp.del.on}}" onMouseLeave="{{tp.del.off}}" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; border-radius: 10px; color: var(--icon); cursor: pointer">
+<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"></path><path d="M10 11v6M14 11v6"></path><path d="M6 7l1 13h10l1-13"></path><path d="M9 7V4h6v3"></path></svg>
+<sc-if value="{{tp.del.show}}"><span role="tooltip" class="tip" style="top: 46px; right: 0">Delete<span class="kbd">⌫</span></span></sc-if>
+</button>
+</sc-if>
+<button aria-label="Discard changes" onClick="{{discard}}" onMouseEnter="{{tp.discard.on}}" onMouseLeave="{{tp.discard.off}}" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: none; border: 1px solid var(--danger-border); border-radius: 10px; color: var(--danger); cursor: pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg><sc-if value="{{tp.discard.show}}"><span role="tooltip" class="tip" style="top: 46px; right: 0">Close without saving changes</span></sc-if></button>
+<button aria-label="Done (Enter)" onClick="{{done}}" onMouseEnter="{{tp.done.on}}" onMouseLeave="{{tp.done.off}}" style="position: relative; height: 40px; display: flex; align-items: center; padding: 0 18px; background: var(--accent); border: 0; border-radius: 10px; color: var(--accent-ink); font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer">
+Done
+<sc-if value="{{tp.done.show}}"><span role="tooltip" class="tip" style="top: 46px; right: 0">Save and close<span class="kbd">↵</span></span></sc-if>
+</button>
+</div>
+</div>
+<div aria-hidden="{{wg.hidden}}" style="position: absolute; top: 72px; right: {{wg.right}}px; display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: var(--toolbar); border: 1px solid var(--toolbar-border); border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,0.12); z-index: 5; opacity: {{wg.op}}; pointer-events: {{wg.pe}}; transform: translateY({{wg.ty}}); transition: opacity 200ms ease, transform 260ms cubic-bezier(0.34, 1.3, 0.64, 1)">
+<div role="slider" tabIndex="0" aria-label="{{wg.aria}}" aria-valuemin="{{wg.min}}" aria-valuemax="{{wg.max}}" aria-valuenow="{{wg.val}}" onPointerDown="{{wgDown}}" onPointerMove="{{wgMove}}" onPointerUp="{{wgUp}}" onKeyDown="{{wgKey}}" onMouseEnter="{{tp.wedge.on}}" onMouseLeave="{{tp.wedge.off}}" style="position: relative; width: 200px; height: 30px; cursor: pointer; touch-action: none; outline: none">
+<svg width="200" height="30" viewBox="0 0 200 30" aria-hidden="true" style="position: absolute; left: 0; top: 0; pointer-events: none"><polygon points="4,15.5 196,9 196,21" fill="none" stroke="var(--muted)" stroke-width="1.2" stroke-linejoin="round"></polygon></svg>
+<span style="position: absolute; top: 2px; left: {{wg.x}}px; width: 14px; height: 26px; box-sizing: border-box; border-radius: 7px; background: #ffffff; border: 1px solid rgba(0,0,0,0.12); box-shadow: 0 1px 4px rgba(0,0,0,0.3); transform: translateX(-50%); pointer-events: none"></span>
+<sc-if value="{{tp.wedge.show}}"><span role="tooltip" class="tip" style="top: 38px; left: 50%; transform: translateX(-50%)">{{wg.label}}</span></sc-if>
+</div>
+</div>
+<sc-if value="{{hasCropBtns}}">
+<div data-cropbtn="1" style="position: absolute; left: {{cb.x}}px; top: {{cb.y}}px; display: flex; flex-direction: column; gap: 6px; z-index: 6">
+<button data-cropbtn="1" aria-label="Apply crop (Enter)" onClick="{{applyCrop}}" onMouseEnter="{{tp.cropok.on}}" onMouseLeave="{{tp.cropok.off}}" style="position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding: 0; background: var(--accent); border: 0; border-radius: 999px; color: var(--accent-ink); cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.45)">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="pointer-events: none"><path d="M5 12l5 5 9-10"></path></svg>
+<sc-if value="{{tp.cropok.show}}"><span role="tooltip" class="tip" style="left: 44px; top: 50%; transform: translateY(-50%)">Apply crop<span class="kbd">↵</span></span></sc-if>
+</button>
+<button data-cropbtn="1" aria-label="Cancel crop (Esc)" onClick="{{cancelCrop}}" onMouseEnter="{{tp.cropno.on}}" onMouseLeave="{{tp.cropno.off}}" style="position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding: 0; background: var(--chrome-bg); border: 1px solid var(--chrome-border); border-radius: 999px; color: var(--chrome-fg); cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.45)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="pointer-events: none"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+<sc-if value="{{tp.cropno.show}}"><span role="tooltip" class="tip" style="left: 44px; top: 50%; transform: translateY(-50%)">Cancel crop<span class="kbd">Esc</span></span></sc-if>
+</button>
+</div>
+</sc-if>
+<div style="position: absolute; left: 0; right: 0; top: {{hintTop}}px; text-align: center; font-size: 13px; color: var(--muted); z-index: 5">{{hint}}</div>
+</div>
+</sc-if>
+
+<div role="status" style="position: absolute; left: 50%; top: 18px; transform: translateX(-50%) translateY({{toastY}}); padding: 9px 14px; display: flex; align-items: center; gap: 8px; white-space: nowrap; background: var(--tip-bg); border: 1px solid var(--tip-border); border-radius: 10px; font-size: 13px; color: var(--text-2); opacity: {{toastOp}}; pointer-events: none; transition: opacity 200ms ease, transform 200ms ease; z-index: 20">{{toastText}}</div>
+
+</div>
+</template>
+<script>if (/[?&]mock/.test(location.search)) document.write('<script src="dev-mock.js"><\/script>');</script>
+<script src="dclite.js"></script>
+<script src="bridge.js"></script>
+<script src="editor.js"></script>
+<script src="md.js"></script>
+<script src="richedit.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>
