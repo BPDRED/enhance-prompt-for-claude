@@ -248,7 +248,7 @@ img { -webkit-user-drag: none; user-select: none; }
 </div>
 </div>
 
-<div style="position: absolute; top: 0; left: 0; width: {{W}}px; height: {{H}}px; z-index: 4; pointer-events: none; opacity: {{chromeOp}}; transition: opacity 220ms ease {{chromeDelay}}">
+<div data-pvchrome="1" style="position: absolute; top: 0; left: 0; width: {{W}}px; height: {{H}}px; z-index: 4; pointer-events: none; opacity: {{chromeOp}}; transition: opacity 220ms ease {{chromeDelay}}">
 <div onMouseEnter="{{nearL}}" onMouseLeave="{{nearOff}}" style="position: absolute; left: {{pc.x0}}px; top: {{pc.y0}}px; width: 170px; height: {{pc.h}}px; box-sizing: border-box; padding-left: 14px; display: flex; align-items: center; pointer-events: {{chromePe}}">
 <button aria-label="Previous image (←)" onClick="{{prev}}" onMouseEnter="{{tp.prev.on}}" onMouseLeave="{{tp.prev.off}}" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: var(--chrome-bg); border: 1px solid var(--chrome-border); border-radius: 999px; color: var(--chrome-fg); cursor: pointer; opacity: {{arrLOp}}; pointer-events: {{arrLPe}}; transition: opacity 180ms ease">
 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>

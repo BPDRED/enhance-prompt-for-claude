@@ -292,22 +292,30 @@
     }
     msBarsSoon() { clearTimeout(this._msBarsT); this._msBarsT = setTimeout(() => this.msUpdateBars(), 30); }
     // Handle at the top: hold and drag to move the box anywhere on the screen (the window covers the screen).
+    // Handle at the top: hold and drag to move the box anywhere on the screen (the window covers the screen).
+    // While dragging, the box, the open image preview and its controls slide together as one piece
+    // (a GPU move, no re-render and no animation), so the preview never lags behind the box.
     handleDown(e) {
       if (e.button !== 0) return;
       e.preventDefault(); e.stopPropagation();
       const el = e.currentTarget; el.setAttribute('data-active', '1');
-      const g0 = this.view(this.S()).g; const sx = e.clientX; const sy = e.clientY; this._dragging = true;
-      const o = { x: g0.CX - g0.CX0, y: g0.BB - g0.B0 };   // start from where the box really is
-      let next = null; let raf = 0;
+      const g0 = this.view(this.S()).g; const sx = e.clientX; const sy = e.clientY;
+      const parts = () => [this._box, document.querySelector('div[role="img"]'), document.querySelector('[data-pvchrome]')].filter(Boolean);
+      document.documentElement.classList.add('resizing');   // no transitions while dragging
+      let dx = 0; let dy = 0; let raf = 0;
       const move = (ev) => {
-        next = { x: o.x + ev.clientX - sx, y: o.y - (ev.clientY - sy) };
-        if (!raf) raf = requestAnimationFrame(() => { raf = 0; this.boxOff = next; this.setState({ tick: this.S().tick + 1 }); });
+        dx = Math.max(8 - g0.CX, Math.min(g0.W - g0.BW - 8 - g0.CX, ev.clientX - sx));
+        dy = Math.max(8 - g0.BB, Math.min(g0.maxBB - g0.BB, sy - ev.clientY));   // up is positive
+        if (!raf) raf = requestAnimationFrame(() => { raf = 0; parts().forEach((p) => { p.style.translate = dx + 'px ' + (-dy) + 'px'; }); });
       };
       const up = () => {
         el.removeAttribute('data-active');
         window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('blur', up);
-        const g = this.view(this.S()).g; this.boxOff = { x: g.CX - g.CX0, y: g.BB - g.B0 };   // keep the place it really reached
-        this._dragging = false; this.setState({ tick: this.S().tick + 1 });
+        cancelAnimationFrame(raf); raf = 0;
+        this.boxOff = { x: g0.CX + dx - g0.CX0, y: g0.BB + dy - g0.B0 };
+        parts().forEach((p) => { p.style.translate = ''; });
+        this.setState({ tick: this.S().tick + 1 });   // the real place, drawn in the same spot: nothing jumps
+        setTimeout(() => document.documentElement.classList.remove('resizing'), 80);
       };
       window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('blur', up);
     }
@@ -410,7 +418,8 @@
       // and the backdrop all aim at the same place and move together.
       const open = s.mode !== 'closed' && s.docs.length;
       const needH = this.lay.fixedH + (open ? ph + 14 : 0) + ((s.micMenu || s.micSettings) ? 220 : 0) + 12;
-      g.BB = Math.max(8, Math.min(g.H - needH, g.BB));
+      g.maxBB = Math.max(8, g.H - needH);
+      g.BB = Math.max(8, Math.min(g.maxBB, g.BB));
       const bottom = this.lay.belowSp ? g.H - g.BB - this.lay.belowSp : (this.lay.spacerBottom || (g.H - 200));
       return {
         g: g, c: c,
@@ -855,7 +864,7 @@
 
       return {
         W: g.W, H: g.H, BW: g.BW, CX: g.CX, BB: g.BB,
-        boxTr: this._dragging ? 'border-color 200ms ease' : 'border-color 200ms ease, bottom 380ms cubic-bezier(0.42, 0, 0.58, 1)',
+        boxTr: 'border-color 200ms ease, bottom 380ms cubic-bezier(0.42, 0, 0.58, 1)',
         boxPad: idle ? '0px' : '14px 16px',
         handleOn: (s.mode || 'closed') !== 'edit', handleW: Math.round(g.BW * 0.1),
         handleDown: (e) => this.handleDown(e),

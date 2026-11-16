@@ -127,7 +127,7 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
         web = WKWebView(frame: window.contentView!.bounds, configuration: cfg)
         web.autoresizingMask = [.width, .height]
         web.navigationDelegate = self
-        web.setValue(false, forKey: "drawsBackground")
+        if mode == "result" { web.underPageBackgroundColor = window.backgroundColor } else { web.setValue(false, forKey: "drawsBackground") }
         if #available(macOS 13.3, *) { web.isInspectable = true }
         window.contentView!.addSubview(web)
         web.load(URLRequest(url: URL(string: "pe://ui/" + (mode == "result" ? "result.html" : "popup.html"))!))
