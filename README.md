@@ -51,7 +51,7 @@ like `[SPECIFY: target audience]` and asks you about it.
 - Images: paste, drop or add them, then mark them up (boxes, circles, arrows, pen, text, crop) in a full-screen editor.
 - **Revise**: pick an earlier enhanced prompt from the same conversation and say what to change.
 - **WC** (with conversation): lets Claude read the last messages of your chat, only to understand what you point at ("the bug above").
-- **Mic**: dictate with Mac dictation, Parakeet V3 or Whisper (see [Dictation](#dictation)). Hold the mic for languages and settings.
+- **Mic**: dictate with Mac dictation or Whisper Turbo (see [Dictation](#dictation)). Hold the mic for languages and settings.
 - A handle at the top to move it anywhere on the screen. ⌘↵ sends, Esc closes (your draft is kept).
 
 **The result window**
@@ -86,8 +86,7 @@ The installer:
 3. writes the three agents it uses to `~/.claude/agents`.
 
 To update, pull and run `./install.sh` again (close any Enhance Prompt window first). To remove it, run
-`./uninstall.sh`. Your saved prompts and the optional speech engine (`~/.claude/prompt-enhancer-engine`)
-stay until you delete them.
+`./uninstall.sh`. Your saved prompts stay until you delete them.
 
 Tested on an Intel Mac with macOS 15 and the Claude desktop app. Apple Silicon should work the same
 (the app is built on your Mac for your Mac), but it hasn't been tested yet.
@@ -108,12 +107,13 @@ The command is manual only: Claude never runs it by itself.
 
 ## Dictation
 
-Click the mic to start and stop. Hold it (half a second) to pick a language or open the settings.
+Click the mic to start. While it listens, a small voice wave shows where the words will go, the mic blinks,
+and the send button turns into a stop square: click it (or the mic) to stop. Hold the mic (half a second)
+to pick a language or open the settings.
 
 | Engine | Quality | Speed | Setup |
 | --- | --- | --- | --- |
 | **Mac dictation** | Good | Live, while you speak | Built in. The mic turns green while it listens. |
-| **Parakeet V3** (Handy's engine) | Best | About 5 s after you stop | After installing, run `~/.claude/skills/enhance-prompt/engine/build-parakeet.sh` (needs `cmake` and `git`; downloads the model). |
 | **Whisper Turbo** | Very good | Slower (10–20 s on older Macs) | `brew install whisper-cpp`, then put `ggml-large-v3-turbo-q5_0.bin` in `~/.cache/whisper.cpp/`. |
 
 Engines that aren't set up show as "Not installed" in the settings.
@@ -135,7 +135,7 @@ After an update the app is rebuilt, so macOS may ask again.
   (one folder per conversation; folders unused for 30 days are deleted).
 - The prompt is enhanced by Claude through your own Claude Code, like any other message.
 - The helper app makes no network requests of its own. Mac dictation uses Apple's speech
-  recognition; Parakeet and Whisper run on your Mac.
+  recognition; Whisper runs on your Mac.
 - Conversation messages are read only when **WC** is on.
 
 ## FAQ
@@ -153,8 +153,6 @@ Yes: run `python3 -m http.server` in `skill/ui` and open `popup.html?mock` or `r
 
 ## Credits
 
-- Parakeet V3 runs on [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) by the
-  [Handy](https://github.com/cjpais/Handy) project (MIT license, see `skill/engine/LICENSE-transcribe.cpp.txt`).
 - Whisper Turbo runs on [whisper.cpp](https://github.com/ggml-org/whisper.cpp).
 
 ## License

@@ -16,6 +16,23 @@ img { -webkit-user-drag: none; user-select: none; }
 [data-rich] li { margin: 1px 0; }
 [data-rich] strong, [data-rich] b { font-weight: 600; }
 [data-rich] a { color: var(--accent); text-decoration: none; }
+[data-rich] a:hover { text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }   /* shows it can be clicked */
+/* While the mic listens: a small moving voice wave where the words will appear (the placeholder is hidden). */
+[data-rich] span[data-dict][data-wave]::after { content: ""; display: inline-block; width: 31px; height: 18px; margin-left: 2px; vertical-align: -3px;
+  background-image: linear-gradient(var(--wave), var(--wave)), linear-gradient(var(--wave), var(--wave)), linear-gradient(var(--wave), var(--wave)), linear-gradient(var(--wave), var(--wave)), linear-gradient(var(--wave), var(--wave));
+  background-repeat: no-repeat; background-position: 0 50%, 7px 50%, 14px 50%, 21px 50%, 28px 50%;
+  background-size: 3px 30%, 3px 70%, 3px 45%, 3px 90%, 3px 35%; animation: pe-wave 0.9s ease-in-out infinite; }
+[data-rich] span[data-dict][data-wave="mac"] { --wave: var(--mac-green); }
+[data-rich] span[data-dict][data-wave="rec"] { --wave: var(--accent); }
+[data-rich] span[data-dict][data-wave="wait"]::after { animation-duration: 1.8s; opacity: 0.5; }   /* writing what you said */
+@keyframes pe-wave {
+  0%, 100% { background-size: 3px 30%, 3px 70%, 3px 45%, 3px 90%, 3px 35%; }
+  25% { background-size: 3px 80%, 3px 40%, 3px 95%, 3px 30%, 3px 60%; }
+  50% { background-size: 3px 45%, 3px 90%, 3px 35%, 3px 65%, 3px 85%; }
+  75% { background-size: 3px 70%, 3px 30%, 3px 60%, 3px 95%, 3px 40%; } }
+/* The mic blinks gently while it listens. */
+button[data-listening="true"] svg { animation: pe-blink 1.1s ease-in-out infinite; }
+@keyframes pe-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 [data-rich] hr { border: 0; border-top: 1px solid var(--divider); margin: 10px 0; }
 [data-rich] code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.88em; padding: 0.1em 0.35em; border-radius: 5px; background: var(--bar-on); }
 .menu-row { display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; padding: 0 10px; box-sizing: border-box; background: none; border: 0; border-radius: 8px; color: var(--text-2); font-family: inherit; font-size: 14px; text-align: left; cursor: pointer; }
@@ -136,11 +153,12 @@ img { -webkit-user-drag: none; user-select: none; }
 </button>
 <span style="flex-grow: 1"></span>
 <button class="press" aria-label="Use this conversation's context (WC)" aria-pressed="{{wcStr}}" onClick="{{toggleWc}}" onMouseEnter="{{tp.wc.on}}" onMouseLeave="{{tp.wc.off}}" style="position: relative; height: 32px; box-sizing: border-box; padding: 0px 12px; background: none; border: 1px solid {{wcBorder}}; border-radius: 999px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 400; color: {{wcColor}}; letter-spacing: 0.04em">WC<sc-if value="{{tp.wc.show}}"><span role="tooltip" class="tip" style="bottom: 40px; right: 0">{{wcTip}}</span></sc-if></button>
-<button class="press" aria-label="Send (⌘↵)" onClick="{{sendBtn}}" onMouseEnter="{{tp.send.on}}" onMouseLeave="{{tp.send.off}}" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; border-radius: 10px; cursor: pointer; color: var(--icon)">
-<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 5v7a4 4 0 0 1-4 4H5"></path><path d="M9 12l-4 4 4 4"></path></svg>
-<sc-if value="{{tp.send.show}}"><span role="tooltip" class="tip" style="bottom: 46px; right: 0">Send<span class="kbd">⌘↵</span></span></sc-if>
+<button class="press" aria-label="{{sendLabel}}" onClick="{{sendBtn}}" onMouseEnter="{{tp.send.on}}" onMouseLeave="{{tp.send.off}}" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; border-radius: 10px; cursor: pointer; color: var(--icon)">
+<sc-if value="{{notListening}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 5v7a4 4 0 0 1-4 4H5"></path><path d="M9 12l-4 4 4 4"></path></svg></sc-if>
+<sc-if value="{{listening}}"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor"></rect></svg></sc-if>
+<sc-if value="{{tp.send.show}}"><span role="tooltip" class="tip" style="bottom: 46px; right: 0">{{sendTip}}<span class="kbd">{{sendKey}}</span></span></sc-if>
 </button>
-<button class="press" aria-label="{{micLabel}}" aria-pressed="{{micStr}}" aria-haspopup="menu" onPointerDown="{{micDown}}" onPointerUp="{{micUp}}" onPointerLeave="{{micLeave}}" onKeyDown="{{micKey}}" onMouseEnter="{{tp.mic.on}}" onMouseLeave="{{tp.mic.off}}" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; border-radius: 10px; cursor: pointer; color: {{micColor}}">
+<button class="press" aria-label="{{micLabel}}" aria-pressed="{{micStr}}" data-listening="{{listenStr}}" aria-haspopup="menu" onPointerDown="{{micDown}}" onPointerUp="{{micUp}}" onPointerLeave="{{micLeave}}" onKeyDown="{{micKey}}" onMouseEnter="{{tp.mic.on}}" onMouseLeave="{{tp.mic.off}}" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; border-radius: 10px; cursor: pointer; color: {{micColor}}">
 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>
 <sc-if value="{{tp.mic.show}}"><span role="tooltip" class="tip" style="bottom: 46px; right: 0">{{micTip}}</span></sc-if>
 </button>

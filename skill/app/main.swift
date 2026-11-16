@@ -328,24 +328,17 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
     var recTask: SFSpeechRecognitionTask?
     var systemDictation = false
     var dictLang = "en"
-    // ----- recording engines (Parakeet = Handy's engine, Whisper): record, then write the text -----
+    // ----- recording engine (Whisper Turbo): record, then write the text -----
     var recEngine: String? = nil
     var recLang = "en"
     var recSamples: [Float] = []
     var recAudio: AVAudioEngine?
     var recCount = 0
     var skillDir: String { uiDir.deletingLastPathComponent().path }
-    var parakeetBin: String { (skillDir as NSString).appendingPathComponent("engine/transcribe-cli") }
-    var parakeetModel: String? {
-        let a = home.appendingPathComponent(".claude/prompt-enhancer-engine/models/parakeet-tdt-0.6b-v3-Q8_0.gguf").path
-        let b = home.appendingPathComponent("Library/Application Support/com.pais.handy/models/parakeet-tdt-0.6b-v3-Q8_0.gguf").path
-        return fm.fileExists(atPath: a) ? a : (fm.fileExists(atPath: b) ? b : nil)
-    }
     var whisperBin: String? { ["/usr/local/bin/whisper-cli", "/opt/homebrew/bin/whisper-cli"].first { fm.isExecutableFile(atPath: $0) } }
     var whisperModel: String? { let p = home.appendingPathComponent(".cache/whisper.cpp/ggml-large-v3-turbo-q5_0.bin").path; return fm.fileExists(atPath: p) ? p : nil }
     func dictationInfo() -> [String: Any] {
-        return ["parakeet": fm.isExecutableFile(atPath: parakeetBin) && parakeetModel != nil,
-                "whisper": whisperBin != nil && whisperModel != nil, "mac": true,
+        return ["whisper": whisperBin != nil && whisperModel != nil, "mac": true,
                 "languages": (UserDefaults.standard.array(forKey: "AppleLanguages") as? [String]) ?? ["en"]]
     }
     func startRecording(engine: String, lang: String, _ done: @escaping ([String: Any]) -> Void) {
@@ -410,12 +403,7 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
         let lang = recLang; let seconds = Double(samples.count) / 16000
         DispatchQueue.global(qos: .userInitiated).async {
             let p = Process(); let pipe = Pipe(); p.standardOutput = pipe; p.standardError = FileHandle.nullDevice
-            var outFile: String? = nil
-            if engine == "parakeet", let m = self.parakeetModel {
-                outFile = wav + ".txt"
-                p.executableURL = URL(fileURLWithPath: self.parakeetBin)
-                p.arguments = ["-q", "-m", m, "-l", lang, "-o", outFile!, wav]
-            } else if let b = self.whisperBin, let m = self.whisperModel {
+            if let b = self.whisperBin, let m = self.whisperModel {
                 // A shorter audio window for short clips makes Whisper much faster here, with the same text.
                 let ctx = min(1500, max(256, Int(ceil(seconds / 30 * 1500)) + 64))
                 p.executableURL = URL(fileURLWithPath: b)
@@ -428,8 +416,7 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
                 try p.run()
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 p.waitUntilExit()
-                if let f = outFile { text = (try? String(contentsOfFile: f, encoding: .utf8)) ?? "" ; try? fm.removeItem(atPath: f) }
-                else { text = String(data: data, encoding: .utf8) ?? "" }
+                text = String(data: data, encoding: .utf8) ?? ""
                 failed = p.terminationStatus != 0 && text.isEmpty
             } catch { failed = true }
             try? fm.removeItem(atPath: wav)

@@ -22,7 +22,7 @@
     pickImages: function () { return [{ src: sample('1', '#3a4250', '#c9b27a', 1600, 1000) }, { src: sample('2', '#4a3f36', '#d9a066', 900, 1200) }, { src: sample('3', '#36463d', '#b7c48f', 1200, 1200) }]; },
     clipboardImages: function () { return [{ src: sample('P', '#463a4a', '#c99ac2', 1280, 720) }]; },
     hit: null,
-    dictationInfo: { parakeet: true, whisper: true, mac: true, languages: ['en-MA', 'fr-MA'] },
+    dictationInfo: { whisper: true, mac: true, languages: ['en-MA', 'fr-MA'] },
     saveSettings: true, openLink: true, saveDraft: true,
     dictateStart: function () { setTimeout(() => window.__dictation({ text: 'hello', final: false }), 100); setTimeout(() => window.__dictation({ text: 'hello world', final: true }), 250); return { ok: true, mode: 'speech' }; },
     dictateStop: true,

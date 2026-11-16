@@ -32,15 +32,14 @@
     text: 'Click to place text · Enter to finish'
   };
   const PH = 'Click to revise a previous prompt and change its #number';
-  // Languages offered in dictation settings. p: Parakeet V3 supports it; w: Whisper; m: Mac dictation.
+  // Languages offered in dictation settings. w: Whisper supports it; m: Mac dictation.
   const LANGS = [
-    ['en', 'English', 'pwm'], ['fr', 'French', 'pwm'], ['ar', 'Arabic', 'wm'], ['es', 'Spanish', 'pwm'], ['de', 'German', 'pwm'],
-    ['it', 'Italian', 'pwm'], ['pt', 'Portuguese', 'pwm'], ['nl', 'Dutch', 'pwm'], ['ru', 'Russian', 'pwm'], ['uk', 'Ukrainian', 'pwm'],
-    ['pl', 'Polish', 'pwm'], ['tr', 'Turkish', 'wm'], ['zh', 'Chinese', 'wm'], ['ja', 'Japanese', 'wm'], ['ko', 'Korean', 'wm'], ['hi', 'Hindi', 'wm']
+    ['en', 'English', 'wm'], ['fr', 'French', 'wm'], ['ar', 'Arabic', 'wm'], ['es', 'Spanish', 'wm'], ['de', 'German', 'wm'],
+    ['it', 'Italian', 'wm'], ['pt', 'Portuguese', 'wm'], ['nl', 'Dutch', 'wm'], ['ru', 'Russian', 'wm'], ['uk', 'Ukrainian', 'wm'],
+    ['pl', 'Polish', 'wm'], ['tr', 'Turkish', 'wm'], ['zh', 'Chinese', 'wm'], ['ja', 'Japanese', 'wm'], ['ko', 'Korean', 'wm'], ['hi', 'Hindi', 'wm']
   ];
   const ENGINES = [
     ['mac', 'Mac dictation', 'Apple\'s engine. Live text while you speak.'],
-    ['parakeet', 'Parakeet V3 · Handy\'s engine', 'Best quality, about 5 s after you stop. Writes when you click again.'],
     ['whisper', 'Whisper Turbo', 'Very good, slower here (about 10–20 s). Most languages.']
   ];
 
@@ -90,10 +89,10 @@
       this.setState(patch);
       this.settings = Object.assign({}, st.settings || {});
       try { this.dictInfo = await Native.call('dictationInfo'); } catch (e) { this.dictInfo = null; }
-      this.dictInfo = this.dictInfo || { parakeet: false, whisper: false, mac: true, languages: ['en'] };
+      this.dictInfo = this.dictInfo || { whisper: false, mac: true, languages: ['en'] };
       if (!this.settings.languages || !this.settings.languages.length) this.settings.languages = (this.dictInfo.languages || ['en']).map((x) => String(x).slice(0, 2).toLowerCase()).filter((x, i, a) => a.indexOf(x) === i);
       if (!this.settings.lang || this.settings.languages.indexOf(this.settings.lang) === -1) this.settings.lang = this.settings.languages[0] || 'en';
-      if (!this.settings.engine || !this.dictInfo[this.settings.engine]) this.settings.engine = this.dictInfo.parakeet ? 'parakeet' : (this.dictInfo.whisper ? 'whisper' : 'mac');
+      if (!this.settings.engine || !this.dictInfo[this.settings.engine]) this.settings.engine = 'mac';
       this.setState({ tick: this.S().tick + 1 });
       if (d && d.text) this.setText(d.text);
       if (d && d.images && d.images.length) await this.addImages(d.images, true);
@@ -221,6 +220,7 @@
       const d = this.S().dict;
       if (d === 'off' || d === 'transcribing') return;
       // Recording engines write the text after you stop; live engines are already done.
+      if (d === 'rec' && this._marker) this._marker.setAttribute('data-wave', 'wait');
       this.setState({ dict: d === 'rec' ? 'transcribing' : 'off' });
       if (d !== 'rec') this.finishDictMarker();
       Native.call('dictateStop');
@@ -233,7 +233,7 @@
       let r = sel.rangeCount && ed.contains(sel.getRangeAt(0).startContainer) ? sel.getRangeAt(0) : null;
       if (!r) { RichEdit.caretToEnd(ed); r = sel.getRangeAt(0); }
       r.deleteContents();
-      const m = document.createElement('span'); m.setAttribute('data-dict', '1');
+      const m = document.createElement('span'); m.setAttribute('data-dict', '1'); m.setAttribute('data-wave', this.settings.engine === 'mac' ? 'mac' : 'rec');
       r.insertNode(m);
       const pre = document.createRange(); pre.setStart(ed, 0); pre.setEndBefore(m);
       this._dictSpace = /\S$/.test(pre.toString());
@@ -249,7 +249,7 @@
       this.syncEmpty(); this.updateTextBar();
     }
     onDictation(m) {
-      if (m.state === 'transcribing') { if (this.S().dict !== 'off') this.setState({ dict: 'transcribing' }); return; }
+      if (m.state === 'transcribing') { if (this._marker) this._marker.setAttribute('data-wave', 'wait'); if (this.S().dict !== 'off') this.setState({ dict: 'transcribing' }); return; }
       if (m.error) { this.toast(m.error); }
       if (m.text != null && this._marker && this.S().dict !== 'off') {
         this._marker.textContent = (this._dictSpace && m.text ? ' ' : '') + m.text;
@@ -760,6 +760,7 @@
     // ---------- render values ----------
     renderVals() {
       const s = this.S();
+      const listening = s.dict === 'on' || s.dict === 'system' || s.dict === 'rec';
       const isEdit = s.mode === 'edit'; const isPv = s.mode === 'preview';
       if (this._wasEdit && !isEdit) { this._leaveUntil = Date.now() + 400; clearTimeout(this._leaveT); this._leaveT = setTimeout(() => this.setState({ tick: this.S().tick + 1 }), 420); }
       this._wasEdit = isEdit;
@@ -881,11 +882,15 @@
           xOp: s.hover === i && !isEdit ? '1' : '0', xPe: s.hover === i && !isEdit ? 'auto' : 'none',
           hoverOn: () => this.setState({ hover: i }), hoverOff: () => this.setState({ hover: -1 })
         })),
-        placeholder: 'Enhance your prompt',
+        placeholder: listening ? '' : 'Enhance your prompt',
         wcStr: s.wc ? 'true' : 'false', wcBorder: s.wc ? 'var(--accent)' : 'var(--thumb-border)', wcColor: s.wc ? 'var(--accent)' : 'var(--icon)',
         wcTip: s.wc ? 'Using this conversation as context' : 'Not using this conversation',
         toggleWc: () => this.setState({ wc: !s.wc }),
-        dictate: () => this.toggleDictation(), sendBtn: () => this.send(),
+        dictate: () => this.toggleDictation(),
+        // While the mic listens, the send button is a stop square: it stops the recording (the mic does too).
+        sendBtn: () => { if (listening) this.stopDictation(); else this.send(); },
+        listening: listening, notListening: !listening, listenStr: listening ? 'true' : 'false',
+        sendLabel: listening ? 'Stop recording' : 'Send (⌘↵)', sendTip: listening ? 'Stop recording' : 'Send', sendKey: listening ? 'Click' : '⌘↵',
         micDown: (e) => this.micDown(e), micUp: (e) => this.micUp(e), micLeave: () => this.micLeave(), micKey: (e) => this.micKey(e),
         micStr: s.dict !== 'off' ? 'true' : 'false',
         micColor: s.dict === 'on' || s.dict === 'system' || s.dict === 'rec' ? (this._dictEngine === 'mac' ? 'var(--mac-green)' : 'var(--accent)') : (s.dict === 'transcribing' ? 'var(--faint)' : 'var(--icon)'),
@@ -895,7 +900,7 @@
           const st = this.settings || {}; const eng = st.engine || 'mac';
           return {
             open: s.micMenu && s.dict === 'off',
-            engineName: { parakeet: 'Parakeet V3', whisper: 'Whisper Turbo', mac: 'Mac dictation' }[eng] || 'Dictation',
+            engineName: { whisper: 'Whisper Turbo', mac: 'Mac dictation' }[eng] || 'Dictation',
             langs: (st.languages || []).map((c) => ({ name: this.langName(c), onStr: c === st.lang ? 'true' : 'false', check: c === st.lang ? '✓' : '', note: this.langOk(c, eng) ? '' : 'not in this engine', pick: () => { this.settings.lang = c; this.saveSettings(); this.setState({ micMenu: false }); this.focusText(); } })),
             openSettings: () => this.setState({ micMenu: false, micSettings: true, msDrop: null })
           };
@@ -903,7 +908,7 @@
         mp: { open: (s.micMenu || s.micSettings) && s.dict === 'off', menu: s.micMenu && !s.micSettings, settings: s.micSettings, w: s.micSettings ? 288 : 230 },
         ms: (() => {
           const st = this.settings || {}; const info = this.dictInfo || {}; const eng = st.engine || 'mac';
-          const SHORT = { parakeet: 'Parakeet V3 · Handy\'s engine', whisper: 'Whisper Turbo', mac: 'Mac dictation' };
+          const SHORT = { whisper: 'Whisper Turbo', mac: 'Mac dictation' };
           const q = s.msQ || {}; const so = s.msSearch || {};
           if (s.micSettings) this.msBarsSoon();
           const field = (key, rows, value, rowH, hasSearch) => {

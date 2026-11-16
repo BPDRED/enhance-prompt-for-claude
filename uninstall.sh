@@ -4,6 +4,5 @@
 set -euo pipefail
 rm -rf "$HOME/.claude/skills/enhance-prompt"
 rm -f "$HOME/.claude/agents/prompt-enhancer.md" "$HOME/.claude/agents/prompt-enhancer-opus-medium.md" "$HOME/.claude/agents/prompt-enhancer-opus-high.md"
-echo "Removed the skill and its agents. Saved prompts are still in ~/.claude/prompt-enhancer,"
-echo "and the optional speech engine (if you built it) in ~/.claude/prompt-enhancer-engine."
+echo "Removed the skill and its agents. Saved prompts are still in ~/.claude/prompt-enhancer."
 echo "If you gave it Accessibility or Microphone access, you can remove 'Enhance Prompt' in System Settings > Privacy & Security."

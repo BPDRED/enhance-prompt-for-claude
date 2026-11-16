@@ -1,5 +1,3 @@
 .DS_Store
 skill/build/
-skill/engine/transcribe-cli
-*.gguf
 *.bin
