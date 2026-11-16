@@ -9,8 +9,8 @@ sets them all up.
 
 | Tool | How you run it | Tested |
 | --- | --- | --- |
-| **Codex** (CLI, app, IDE extension) | `$enhance-prompt` (or pick it in `/skills`) | Yes, Codex CLI 0.145 |
-| **Antigravity** (app and `agy` CLI) | `/enhance-prompt` | Yes, `agy` 1.5.9 |
+| **Codex** (CLI, app, IDE extension) | `$enhance-prompt` (or pick it in `/skills`) | Yes, Codex CLI 0.145 (see note) |
+| **Antigravity** (app and `agy` CLI) | `/enhance-prompt` | Yes, `agy` 1.5.9, with its terminal sandbox off |
 | **Gemini CLI** | `/enhance-prompt` | Not yet (not installed on the test Mac) |
 
 ## 1. Install (once, for all tools)
@@ -43,9 +43,13 @@ and pick **enhance-prompt**. The popup opens; write or dictate your draft and pr
 it and the result window opens.
 
 **Approval:** the skill runs a helper command that opens the popup app and saves to
-`~/.claude/prompt-enhancer`, which is outside your project. With Codex's default sandbox, Codex asks
-before running it: approve it (choose the option to always allow this command so it doesn't ask
-every time).
+`~/.claude/prompt-enhancer`, which is outside your project, so Codex's default sandbox should ask
+before running it: approve it, ideally for good. (Tested with full access only; the approval step
+itself was not tested.)
+
+**Note:** in non-interactive tests (`codex exec`), Codex sometimes reported "Failed to create unified
+exec process" for the waiting command. If Codex runs the command again, the helper now picks up the
+popup that is already open and keeps waiting.
 
 **Model:** whatever model your Codex session uses (`/model` to change it).
 
@@ -54,10 +58,10 @@ every time).
 **Use it:** in the agent chat, type `/enhance-prompt`. The popup opens; write your draft and press ⌘↵.
 The agent enhances it with the current Gemini model and the result window opens.
 
-**Terminal sandbox:** if the terminal sandbox is on (`"enableTerminalSandbox": true` in
-`~/.gemini/antigravity-cli/settings.json`, or the app's sandbox setting), the popup app can't start
-from inside it. Allow the command to run outside the sandbox when Antigravity asks, or turn the sandbox
-off. In a test with the sandbox on, the popup did not open; with it off, everything worked.
+**Terminal sandbox:** with the terminal sandbox on (`"enableTerminalSandbox": true` in
+`~/.gemini/antigravity-cli/settings.json`), the popup app can't start from inside it (tested twice).
+Turn the sandbox off, or allow the command to run outside the sandbox if Antigravity offers that.
+With the sandbox off, it worked, including a draft sent after almost 2 minutes of writing.
 
 **Model:** the session's model (`agy --model …`, or the model picker in the app).
 
@@ -79,4 +83,4 @@ June 2026. If that applies to you, use the Antigravity steps above.
   session. The result window shows the model name the tool reports.
 - **Revise:** works per project and day (prompts are grouped by folder name and date).
 - **Waiting:** while you write, the agent checks back about every 100 seconds, so a long draft costs a
-  few small tool calls.
+  few small tool calls. Gemini CLI was not tested.

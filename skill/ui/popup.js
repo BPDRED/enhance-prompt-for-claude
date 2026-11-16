@@ -222,9 +222,19 @@
       if (d === 'off' || d === 'transcribing') return;
       // Recording engines write the text after you stop; live engines are already done.
       if (d === 'rec' && this._marker) this._marker.setAttribute('data-wave', 'wait');
+      if (d === 'rec') this.busyGuard();
       this.setState({ dict: d === 'rec' ? 'transcribing' : 'off' });
       if (d !== 'rec') this.finishDictMarker();
       Native.call('dictateStop');
+    }
+    // The box is locked while Whisper writes; never leave it locked if no answer comes.
+    busyGuard() {
+      clearTimeout(this._busyT);
+      this._busyT = setTimeout(() => {
+        if (this.S().dict !== 'transcribing') return;
+        this.finishDictMarker(); this.setState({ dict: 'off' }); this.focusText();
+        this.toast('Dictation took too long; nothing was written');
+      }, 120000);
     }
     // Dictated words go into a marker placed at the caret, so they land where you were typing.
     placeDictMarker() {
@@ -250,13 +260,13 @@
       this.syncEmpty(); this.updateTextBar();
     }
     onDictation(m) {
-      if (m.state === 'transcribing') { if (this._marker) this._marker.setAttribute('data-wave', 'wait'); if (this.S().dict !== 'off') this.setState({ dict: 'transcribing' }); return; }
+      if (m.state === 'transcribing') { if (this._marker) this._marker.setAttribute('data-wave', 'wait'); if (this.S().dict !== 'off') { this.busyGuard(); this.setState({ dict: 'transcribing' }); } return; }
       if (m.error) { this.toast(m.error); }
       if (m.text != null && this._marker && this.S().dict !== 'off') {
         this._marker.textContent = (this._dictSpace && m.text ? ' ' : '') + m.text;
         this.syncEmpty(); this.updateTextBar();
       }
-      if (m.done) { this.finishDictMarker(); if (this.S().dict !== 'off') { this.setState({ dict: 'off' }); this.focusText(); } }
+      if (m.done) { clearTimeout(this._busyT); this.finishDictMarker(); if (this.S().dict !== 'off') { this.setState({ dict: 'off' }); this.focusText(); } }
     }
     // ----- mic: click = start/stop, long-press = language menu -----
     micDown(e) {

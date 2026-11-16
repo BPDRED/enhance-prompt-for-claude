@@ -125,6 +125,16 @@ def ensure_app():
             raise RuntimeError('could not build the popup app: ' + (r.stderr or r.stdout)[-600:])
 
 
+def popup_job(pid):
+    """The job folder of the open popup (from its command line), or None."""
+    try:
+        comm = subprocess.run(['ps', '-p', str(pid), '-o', 'command='], capture_output=True, text=True).stdout
+    except Exception:
+        return None
+    m = re.search(r'--job (\S+)', comm)
+    return m.group(1) if m and os.path.isdir(m.group(1)) else None
+
+
 def popup_running():
     """PID of a popup that is really still open; a leftover file from a killed run is removed."""
     try:
@@ -244,6 +254,11 @@ def cmd_start(a):
             os.kill(other, signal.SIGUSR1)
         except OSError:
             pass
+        # Same conversation (for example the tool lost track of the first command and ran it again):
+        # take over the open popup and keep waiting for it instead of giving up.
+        job = popup_job(other)
+        if job and os.path.dirname(os.path.dirname(job)) == tdir:
+            return wait_and_emit(job, a.session)
         out('STATUS: ALREADY_OPEN')
         out('A popup is already open; it was brought to the front.')
         return 0
